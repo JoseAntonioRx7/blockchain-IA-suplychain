@@ -1,60 +1,134 @@
-from web3 import Web3
 import json
+from web3 import Web3
 import time
 
-# 1. Configuração de Conexão (Ganache)
-ganache_url = "http://127.0.0.1:7545" # Verifique a porta no seu Ganache
+# --- CONFIGURAÇÃO DE INFRAESTRUTURA ---
+# Conecta ao seu Ganache
+ganache_url = "http://127.0.0.1:7545"
 web3 = Web3(Web3.HTTPProvider(ganache_url))
 
-# Verificando conexão
-if not web3.is_connected():
-    print("Erro: Não foi possível conectar ao Ganache!")
-    exit()
+# DADOS DO CONTRATO (Cole aqui o que você pegou no Remix)
+contract_address = "0x36a075f350ebF154f496b3E16F90B9594F2B6d40"
+abi = [
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_id",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "_nome",
+				"type": "string"
+			}
+		],
+		"name": "iniciarJornada",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_id",
+				"type": "uint256"
+			},
+			{
+				"internalType": "int256",
+				"name": "_temp",
+				"type": "int256"
+			},
+			{
+				"internalType": "string",
+				"name": "_data",
+				"type": "string"
+			}
+		],
+		"name": "registrarAnomalia",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "lotes",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "nomeMedicamento",
+				"type": "string"
+			},
+			{
+				"internalType": "enum RastreioFarma.Estado",
+				"name": "statusAtual",
+				"type": "uint8"
+			},
+			{
+				"internalType": "int256",
+				"name": "ultimaTemperatura",
+				"type": "int256"
+			},
+			{
+				"internalType": "string",
+				"name": "timestampFalha",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+]
 
-# 2. Endereços e Credenciais
-# Substitua pelos dados do seu Remix/Ganache
-contract_address = "COLE_AQUI_O_ENDERECO_DO_CONTRATO"
-wallet_address = web3.eth.accounts[0] # Usa a primeira conta do Ganache
+contract = web3.eth.contract(address=contract_address, abi=abi)
+conta_admin = web3.eth.accounts[0] # Usa a primeira conta da lista do Ganache
 
-# Cole aqui o ABI gerado pelo Remix (formato de lista/json)
-contract_abi = json.loads('[COLE_AQUI_O_ABI_COMPLETO]')
+# --- LÓGICA DA SOLUÇÃO ---
 
-contract = web3.eth.contract(address=contract_address, abi=contract_abi)
+def iniciar_lote(id_lote, nome):
+    """ Registra o medicamento no início da jornada """
+    print(f"\n[SISTEMA] Iniciando rastreio do lote {id_lote}: {nome}")
+    tx = contract.functions.iniciarJornada(id_lote, nome).transact({'from': conta_admin})
+    web3.eth.wait_for_transaction_receipt(tx)
+    print("Registro de origem gravado no Blockchain.")
 
-def monitorar_sensor_ia(id_lote, temperatura):
+def ia_analisador_coldchain(id_lote, temperatura):
+    """ 
+    Simulação da IA: Ela decide se o dado é uma anomalia.
+    Para o artigo: 'Algoritmo de monitoramento autônomo de integridade térmica'.
     """
-    Simula o 'Cérebro' da arquitetura.
-    Analisa os dados e decide se deve acionar o Blockchain.
-    """
-    print(f"[{time.strftime('%H:%M:%S')}] IA Analisando Lote {id_lote}: {temperatura}°C")
+    timestamp = time.strftime("%d/%m/%Y %H:%M:%S")
+    print(f"[{timestamp}] Sensor detectou: {temperatura}°C")
     
-    # Lógica de decisão (A 'IA' detectando a falha)
+    # Regra de Ouro: Entre 2°C e 8°C (Insulina/Vacinas)
     if temperatura < 2 or temperatura > 8:
-        print(f"⚠️ ALERTA: Temperatura crítica detectada ({temperatura}°C)!")
-        registrar_no_blockchain(id_lote, temperatura)
+        print(f"IA DETECTOU QUEBRA DE PROTOCOLO: {temperatura}°C!")
+        print("IA Acionando contrato inteligente para bloqueio do lote...")
+        
+        # Grava a falha de forma imutável
+        tx = contract.functions.registrarAnomalia(id_lote, int(temperatura), timestamp).transact({'from': conta_admin})
+        receipt = web3.eth.wait_for_transaction_receipt(tx)
+        
+        print(f"LOTE COMPROMETIDO REGISTRADO. Hash: {receipt.transactionHash.hex()}")
     else:
-        print("Status: Condições ideais.")
+        print("Temperatura estável. Integridade garantida.")
 
-def registrar_no_blockchain(id_lote, temp):
-    """
-    A ponte Web3: Transforma a decisão da IA em um registro imutável.
-    """
-    print("Registrando anomalia no Blockchain de forma imutável...")
-    
-    tx_hash = contract.functions.registrarAnomalia(
-        id_lote, 
-        int(temp), 
-        time.strftime("%d/%m/%Y %H:%M:%S")
-    ).transact({'from': wallet_address})
-    
-    # Aguarda a mineração do bloco
-    receipt = web3.eth.wait_for_transaction_receipt(tx_hash)
-    print(f"Transação confirmada! Bloco: {receipt.blockNumber}")
-    print(f"Hash: {tx_hash.hex()}")
+# --- EXECUÇÃO DO EXPERIMENTO (Para os resultados da sua IC) ---
 
-# --- SIMULAÇÃO PRÁTICA ---
-# Lote 101: Insulina (Alto Custo)
-print("--- Iniciando Monitoramento de Lote Farmacêutico ---")
-monitorar_sensor_ia(101, 5.2)  # OK
+# 1. Cadastro inicial
+iniciar_lote(1001, "Insulina Humana (Alto Custo)")
+
+# 2. Simulação de transporte normal
+time.sleep(1)
+ia_analisador_coldchain(1001, 5.0)
+
+# 3. Simulação da DOR (Falha no compressor de refrigeração)
 time.sleep(2)
-monitorar_sensor_ia(101, 9.5)  # FALHA - Aciona o Blockchain
+ia_analisador_coldchain(1001, 12.0)
